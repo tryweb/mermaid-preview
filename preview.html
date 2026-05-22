@@ -1,228 +1,631 @@
 <!DOCTYPE html>
-<html lang="zh-Hant">
+<html lang="zh-TW">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Mermaid Live Preview Tool</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mermaid 即時編輯器</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.9.1/mermaid.min.js"></script>
+<style>
+  :root {
+    --bg:        #f7f8fa;
+    --surface:   #ffffff;
+    --surface2:  #f0f2f5;
+    --border:    #dde1e7;
+    --border2:   #c8cdd5;
+    --text:      #1a2030;
+    --text2:     #5a6275;
+    --text3:     #9aa0ad;
+    --accent:    #2b8a6e;   /* teal-green — fresh, not AI-blue */
+    --accent-lt: #e6f4f0;
+    --accent2:   #e07c2a;   /* warm amber for secondary dot */
+    --err:       #c0392b;
+    --err-lt:    #fdf0ee;
+    --err-bd:    #e8b4ae;
+    --ok:        #27a06a;
+    --divider-bg:#ebeef2;
+  }
 
-  <script type="module">
-    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+  * { margin: 0; padding: 0; box-sizing: border-box; }
 
-    window.mermaid = mermaid;
+  body {
+    font-family: 'Courier New', monospace;
+    background: var(--bg);
+    color: var(--text);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
 
-    mermaid.initialize({
-      startOnLoad: false,
-      theme: 'default',
-      securityLevel: 'loose',
-    });
-  </script>
+  header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 11px 20px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
 
-  <style>
-    * {
-      box-sizing: border-box;
-    }
+  .logo { display: flex; align-items: center; gap: 10px; }
 
-    body {
-      margin: 0;
-      font-family: "Segoe UI", sans-serif;
-      background: #f5f6f8;
-      height: 100vh;
-      overflow: hidden;
-    }
+  .logo-mark {
+    width: 30px; height: 30px;
+    background: var(--accent);
+    border-radius: 7px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 15px; font-weight: bold; color: #fff;
+    font-family: Georgia, serif; letter-spacing: -1px;
+  }
 
-    .container {
-      display: flex;
-      width: 100%;
-      height: 100vh;
-    }
+  .title {
+    font-size: 14px; font-weight: 600; color: var(--text);
+    font-family: Georgia, 'Times New Roman', serif; letter-spacing: 0.3px;
+  }
 
-    .editor-panel {
-      width: 50%;
-      border-right: 1px solid #ddd;
-      background: #1e1e1e;
-      display: flex;
-      flex-direction: column;
-    }
+  .badge {
+    font-size: 10px; padding: 2px 8px; border-radius: 20px;
+    background: var(--accent-lt); color: var(--accent);
+    border: 1px solid #b2ddd3; letter-spacing: 1px;
+    text-transform: uppercase; font-family: 'Courier New', monospace;
+  }
 
-    .preview-panel {
-      width: 50%;
-      background: #ffffff;
-      overflow: auto;
-      position: relative;
-    }
+  .toolbar { margin-left: auto; display: flex; gap: 6px; }
 
-    .panel-title {
-      padding: 12px 16px;
-      font-size: 14px;
-      font-weight: bold;
-      background: #2d2d2d;
-      color: #fff;
-      border-bottom: 1px solid #444;
-    }
+  .toolbar button {
+    background: var(--surface); border: 1px solid var(--border);
+    color: var(--text2); padding: 4px 12px; border-radius: 6px;
+    font-size: 12px; cursor: pointer;
+    font-family: 'Courier New', monospace; transition: all 0.13s;
+  }
 
-    textarea {
-      flex: 1;
-      width: 100%;
-      border: none;
-      outline: none;
-      resize: none;
-      padding: 16px;
-      font-size: 14px;
-      line-height: 1.6;
-      font-family: Consolas, Monaco, monospace;
-      background: #1e1e1e;
-      color: #dcdcdc;
-    }
+  .toolbar button:hover {
+    background: var(--accent-lt); color: var(--accent); border-color: #b2ddd3;
+  }
 
-    #preview {
-      padding: 20px;
-      min-height: 100%;
-    }
+  .workspace { display: flex; flex: 1; overflow: hidden; }
 
-    .error-box {
-      margin: 16px;
-      padding: 14px;
-      border-radius: 8px;
-      background: #fff0f0;
-      border: 1px solid #ffb3b3;
-      color: #b30000;
-      font-size: 14px;
-      line-height: 1.5;
-      white-space: pre-wrap;
-    }
+  #left-panel {
+    display: flex; flex-direction: column; overflow: hidden;
+    flex: 0 0 50%;
+    transition: flex-basis 0.3s cubic-bezier(0.4,0,0.2,1),
+                min-width 0.3s cubic-bezier(0.4,0,0.2,1),
+                max-width 0.3s cubic-bezier(0.4,0,0.2,1);
+    min-width: 0;
+  }
 
-    .status-bar {
-      padding: 8px 16px;
-      font-size: 12px;
-      background: #f0f0f0;
-      border-top: 1px solid #ddd;
-      color: #666;
-    }
+  #left-panel.collapsed {
+    flex: 0 0 0% !important;
+    max-width: 0;
+    overflow: hidden;
+  }
 
-    .success {
-      color: #0b7a0b;
-    }
+  #right-panel { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
 
-    .error {
-      color: #c62828;
-    }
+  .panel-header {
+    display: flex; align-items: center; gap: 8px;
+    padding: 7px 14px;
+    background: var(--surface2); border-bottom: 1px solid var(--border);
+    font-size: 11px; color: var(--text3);
+    letter-spacing: 1px; text-transform: uppercase; flex-shrink: 0;
+  }
 
-    svg {
-      max-width: 100%;
-    }
-  </style>
+  .panel-header .dot { width: 7px; height: 7px; border-radius: 50%; }
+  .dot-green  { background: var(--accent); }
+  .dot-amber  { background: var(--accent2); }
+
+  .divider {
+    width: 20px;
+    background: var(--divider-bg);
+    border-left: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+    cursor: col-resize;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    transition: background 0.15s, width 0.3s;
+    z-index: 10;
+  }
+
+  .divider:hover { background: #e0e8e5; }
+
+  .collapse-btn {
+    width: 18px; height: 40px;
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; color: var(--text2);
+    transition: all 0.13s;
+    user-select: none;
+    flex-shrink: 0;
+  }
+
+  .collapse-btn:hover {
+    background: var(--accent-lt); border-color: #b2ddd3; color: var(--accent);
+  }
+
+  #expand-tab {
+    display: none;
+    position: absolute;
+    left: 0; top: 50%;
+    transform: translateY(-50%);
+    width: 20px; height: 48px;
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    border-left: none;
+    border-radius: 0 6px 6px 0;
+    cursor: pointer;
+    align-items: center; justify-content: center;
+    font-size: 11px; color: var(--text2);
+    z-index: 20;
+    transition: background 0.13s;
+  }
+
+  #expand-tab:hover { background: var(--accent-lt); color: var(--accent); }
+  #expand-tab.visible { display: flex; }
+
+  #editor {
+    flex: 1; background: var(--surface); color: var(--text);
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 14px; line-height: 1.7; padding: 18px 20px;
+    border: none; outline: none; resize: none; overflow-y: auto;
+    tab-size: 2; caret-color: var(--accent);
+  }
+
+  #editor::selection { background: #c8ece4; }
+  #editor::placeholder { color: var(--text3); }
+
+  .preview-area {
+    flex: 1; overflow: auto; position: relative; background: var(--bg);
+  }
+
+  #diagram-container {
+    min-height: 100%;
+    display: flex; align-items: flex-start; justify-content: center;
+    padding: 28px;
+  }
+
+  #diagram-output { max-width: 100%; }
+
+  #diagram-output svg {
+    display: block;
+    filter: drop-shadow(0 2px 12px rgba(0,0,0,0.08));
+  }
+
+  .zoom-controls {
+    display: flex; align-items: center; gap: 6px;
+    margin-left: auto;
+  }
+
+  .zoom-btn {
+    background: var(--surface); border: 1px solid var(--border);
+    color: var(--text2); width: 26px; height: 26px;
+    border-radius: 5px; font-size: 14px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.13s; font-family: monospace; line-height: 1;
+    flex-shrink: 0;
+  }
+
+  .zoom-btn:hover { background: var(--accent-lt); color: var(--accent); border-color: #b2ddd3; }
+
+  .zoom-label {
+    font-size: 11px; color: var(--text3); min-width: 36px; text-align: center;
+    letter-spacing: 0.5px;
+  }
+
+  .error-panel {
+    display: none; padding: 14px 18px;
+    background: var(--err-lt); border: 1px solid var(--err-bd);
+    border-radius: 8px; margin: 18px;
+  }
+
+  .error-panel.visible { display: block; }
+
+  .error-header {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
+    font-size: 12px; font-weight: 600; color: var(--err);
+    text-transform: uppercase; letter-spacing: 1px;
+  }
+
+  .error-icon {
+    width: 18px; height: 18px; border-radius: 50%;
+    background: #f5c6c2; border: 1px solid var(--err-bd);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; color: var(--err); font-style: normal; font-weight: bold;
+  }
+
+  .error-message {
+    font-size: 13px; color: #7a1a12; line-height: 1.6;
+    font-family: 'Courier New', monospace; white-space: pre-wrap; word-break: break-all;
+  }
+
+  .error-hint { margin-top: 8px; font-size: 12px; color: #9a6058; line-height: 1.5; }
+
+  .error-line {
+    display: inline-block; background: #f5c6c2; border-radius: 4px;
+    padding: 0 4px; color: var(--err);
+    font-family: 'Courier New', monospace; font-size: 12px;
+  }
+
+  .status-bar {
+    display: flex; align-items: center; gap: 16px;
+    padding: 5px 14px; background: var(--surface2);
+    border-top: 1px solid var(--border);
+    font-size: 11px; color: var(--text3); flex-shrink: 0;
+  }
+
+  .status-ok  { color: var(--ok); }
+  .status-err { color: var(--err); }
+
+  .pulse {
+    display: inline-block; width: 6px; height: 6px;
+    border-radius: 50%; background: var(--ok); margin-right: 5px;
+    animation: pulse 2s infinite;
+  }
+
+  .pulse.err { background: var(--err); animation: none; }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  .empty-state {
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    height: 100%; color: var(--text3);
+    font-size: 13px; gap: 10px; text-align: center; padding: 40px;
+    user-select: none;
+  }
+
+  .empty-state .big { font-size: 48px; opacity: 0.25; }
+  #line-info { margin-left: auto; }
+</style>
 </head>
-
 <body>
 
-<div class="container">
+<header>
+  <div class="logo">
+    <div class="logo-mark">M</div>
+    <span class="title">Mermaid 即時編輯器</span>
+    <span class="badge">Live</span>
+  </div>
+  <div class="toolbar">
+    <button onclick="loadExample('flowchart')">流程圖範例</button>
+    <button onclick="loadExample('sequence')">時序圖範例</button>
+    <button onclick="loadExample('class')">類別圖範例</button>
+    <button onclick="clearEditor()">清除</button>
+    <button onclick="copyCode()">複製程式碼</button>
+  </div>
+</header>
 
-  <!-- 左側編輯區 -->
-  <div class="editor-panel">
-    <div class="panel-title">
-      Mermaid Code Editor
+<div class="workspace" style="position:relative;">
+  <!-- expand tab when collapsed -->
+  <div id="expand-tab" title="展開編輯器" onclick="expandPanel()">▶</div>
+
+  <div class="panel" id="left-panel">
+    <div class="panel-header">
+      <span class="dot dot-green"></span>
+      Mermaid 程式碼
     </div>
+    <textarea id="editor" placeholder="在此輸入 mermaid 程式碼…
 
-    <textarea id="codeInput">
-flowchart TD
-
-A[開始] --> B{是否登入?}
-
-B -->|是| C[進入系統]
-B -->|否| D[導向登入頁]
-
-C --> E[顯示 Dashboard]
-D --> F[等待使用者登入]
-    </textarea>
-
-    <div class="status-bar" id="statusBar">
-      Ready
+例如:
+graph TD
+  A[開始] --> B{判斷}
+  B -->|是| C[執行]
+  B -->|否| D[結束]
+  C --> D"></textarea>
+    <div class="status-bar">
+      <span id="status-indicator"><span class="pulse" id="pulse-dot"></span><span id="status-text" class="status-ok">就緒</span></span>
+      <span id="line-info">第 1 行，第 1 列</span>
     </div>
   </div>
 
-  <!-- 右側預覽區 -->
-  <div class="preview-panel">
-    <div class="panel-title" style="background:#fafafa;color:#333;border-bottom:1px solid #ddd;">
-      Mermaid Preview
-    </div>
-
-    <div id="preview"></div>
+  <div class="divider" id="divider">
+    <div class="collapse-btn" id="collapse-btn" title="收縮編輯器" onclick="togglePanel()">◀</div>
   </div>
 
+  <div class="panel" id="right-panel">
+    <div class="panel-header">
+      <span class="dot dot-amber"></span>
+      預覽輸出
+      <div class="zoom-controls">
+        <button class="zoom-btn" onclick="changeZoom(-0.1)" title="縮小">−</button>
+        <span class="zoom-label" id="zoom-label">100%</span>
+        <button class="zoom-btn" onclick="changeZoom(0.1)" title="放大">+</button>
+        <button class="zoom-btn" onclick="resetZoom()" title="重設縮放" style="width:auto;padding:0 8px;font-size:10px;letter-spacing:0.5px;">重設</button>
+      </div>
+    </div>
+    <div class="preview-area" id="preview-area">
+      <div id="error-panel" class="error-panel">
+        <div class="error-header">
+          <span class="error-icon">!</span>
+          語法錯誤
+        </div>
+        <div class="error-message" id="error-message"></div>
+        <div class="error-hint" id="error-hint"></div>
+      </div>
+      <div id="diagram-container">
+        <div id="diagram-output">
+          <div class="empty-state">
+            <div class="big">⬡</div>
+            <div>輸入 Mermaid 程式碼後，圖形將在此即時呈現</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 
-<script type="module">
+<script>
+  mermaid.initialize({
+    startOnLoad: false,
+    theme: 'neutral',
+    themeVariables: {
+      primaryColor: '#dff0eb',
+      primaryTextColor: '#1a2030',
+      primaryBorderColor: '#8ec9b8',
+      lineColor: '#5a9e8a',
+      secondaryColor: '#f0f5f3',
+      tertiaryColor: '#fdf8f0',
+      background: '#ffffff',
+      mainBkg: '#dff0eb',
+      nodeBorder: '#8ec9b8',
+      clusterBkg: '#f0f5f3',
+      titleColor: '#1a2030',
+      edgeLabelBackground: '#f7f8fa',
+      fontFamily: 'Courier New, monospace',
+    },
+    securityLevel: 'loose',
+    flowchart: { curve: 'basis' },
+  });
 
-const textarea = document.getElementById('codeInput');
-const preview = document.getElementById('preview');
-const statusBar = document.getElementById('statusBar');
+  const editor = document.getElementById('editor');
+  const diagramOutput = document.getElementById('diagram-output');
+  const errorPanel = document.getElementById('error-panel');
+  const errorMessage = document.getElementById('error-message');
+  const errorHint = document.getElementById('error-hint');
+  const statusText = document.getElementById('status-text');
+  const pulseDot = document.getElementById('pulse-dot');
+  const lineInfo = document.getElementById('line-info');
+  const leftPanel = document.getElementById('left-panel');
+  const divider = document.getElementById('divider');
+  const collapseBtn = document.getElementById('collapse-btn');
+  const expandTab = document.getElementById('expand-tab');
+  const zoomLabel = document.getElementById('zoom-label');
 
-let renderTimer = null;
+  let debounceTimer;
+  let renderCount = 0;
+  let zoomLevel = 1.0;
+  let panelCollapsed = false;
 
-async function renderMermaid() {
+  // ── Collapse / Expand ──────────────────────────────────────────
+  function togglePanel() {
+    if (panelCollapsed) expandPanel(); else collapsePanel();
+  }
 
-  const code = textarea.value;
+  function collapsePanel() {
+    panelCollapsed = true;
+    leftPanel.classList.add('collapsed');
+    divider.style.cursor = 'default';
+    divider.style.width = '0';
+    collapseBtn.style.display = 'none';
+    expandTab.classList.add('visible');
+  }
 
-  clearTimeout(renderTimer);
+  function expandPanel() {
+    panelCollapsed = false;
+    leftPanel.classList.remove('collapsed');
+    leftPanel.style.flex = '0 0 50%';
+    divider.style.cursor = 'col-resize';
+    divider.style.width = '20px';
+    collapseBtn.style.display = 'flex';
+    expandTab.classList.remove('visible');
+  }
 
-  renderTimer = setTimeout(async () => {
-
-    try {
-
-      preview.innerHTML = '';
-
-      // 驗證 Mermaid Syntax
-      await window.mermaid.parse(code);
-
-      // Render SVG
-      const renderId = 'mermaid-' + Date.now();
-
-      const result = await window.mermaid.render(renderId, code);
-
-      preview.innerHTML = result.svg;
-
-      statusBar.innerHTML =
-        '<span class="success">✓ Mermaid Render Success</span>';
-
-    } catch (err) {
-
-      console.error(err);
-
-      let message = err?.message || String(err);
-
-      // 嘗試解析錯誤行號
-      let lineInfo = '';
-
-      const lineMatch =
-        message.match(/line (\d+)/i) ||
-        message.match(/on line (\d+)/i);
-
-      if (lineMatch) {
-        lineInfo = `\n\n錯誤行數: 第 ${lineMatch[1]} 行`;
+  // ── Zoom ────────────────────────────────────────────────────────
+  // Resize SVG width/height directly — stays vector-crisp at any zoom level
+  function applyZoom() {
+    const svg = diagramOutput.querySelector('svg');
+    if (svg) {
+      if (!svg._baseW) {
+        const vb = svg.viewBox.baseVal;
+        svg._baseW = vb.width  || svg.getBoundingClientRect().width  || 800;
+        svg._baseH = vb.height || svg.getBoundingClientRect().height || 600;
       }
-
-      preview.innerHTML = `
-        <div class="error-box">
-          <strong>Mermaid Syntax Error</strong>
-
-${message}${lineInfo}
-        </div>
-      `;
-
-      statusBar.innerHTML =
-        '<span class="error">✗ Mermaid Render Failed</span>';
+      svg.style.width  = (svg._baseW * zoomLevel) + 'px';
+      svg.style.height = (svg._baseH * zoomLevel) + 'px';
+      svg.style.maxWidth = 'none';
     }
+    zoomLabel.textContent = Math.round(zoomLevel * 100) + '%';
+  }
 
-  }, 300);
-}
+  function changeZoom(delta) {
+    zoomLevel = Math.min(5, Math.max(0.2, parseFloat((zoomLevel + delta).toFixed(2))));
+    applyZoom();
+  }
 
-// 即時更新
-textarea.addEventListener('input', renderMermaid);
+  function resetZoom() {
+    zoomLevel = 1.0;
+    applyZoom();
+  }
 
-// 初始 render
-renderMermaid();
+  // scroll wheel to zoom inside preview
+  document.getElementById('preview-area').addEventListener('wheel', e => {
+    e.preventDefault();
+    const delta = e.deltaY < 0 ? 0.1 : -0.1;
+    changeZoom(delta);
+  }, { passive: false });
 
+  // ── Render ──────────────────────────────────────────────────────
+  function setStatus(ok, msg) {
+    statusText.textContent = msg;
+    statusText.className = ok ? 'status-ok' : 'status-err';
+    pulseDot.className = ok ? 'pulse' : 'pulse err';
+  }
+
+  function extractErrorInfo(errMsg) {
+    const hints = [];
+    if (/Parse error|Unexpected token/i.test(errMsg)) hints.push('請檢查關鍵字拼寫和括號是否正確');
+    if (/Lexical error/i.test(errMsg)) hints.push('發現非法字元，請確認引號和特殊符號');
+    if (/line (\d+)/i.test(errMsg)) {
+      const lineMatch = errMsg.match(/line (\d+)/i);
+      if (lineMatch) hints.push(`錯誤發生於約第 <span class="error-line">${lineMatch[1]}</span> 行`);
+    }
+    if (/Diagram type/i.test(errMsg)) hints.push('請確認圖表類型宣告（如 graph、sequenceDiagram、classDiagram 等）');
+    return hints.join('&nbsp;&nbsp;·&nbsp;&nbsp;');
+  }
+
+  async function render() {
+    const code = editor.value.trim();
+    if (!code) {
+      diagramOutput.innerHTML = `<div class="empty-state"><div class="big">⬡</div><div>輸入 Mermaid 程式碼後，圖形將在此即時呈現</div></div>`;
+      errorPanel.classList.remove('visible');
+      setStatus(true, '就緒');
+      return;
+    }
+    try {
+      const id = 'mermaid-' + (++renderCount);
+      const { svg } = await mermaid.render(id, code);
+      diagramOutput.innerHTML = svg;
+      applyZoom();
+      errorPanel.classList.remove('visible');
+      setStatus(true, '渲染成功');
+    } catch (e) {
+      const msg = e.message || e.toString();
+      errorMessage.textContent = msg;
+      errorHint.innerHTML = extractErrorInfo(msg) || '請對照 Mermaid 官方語法文件進行修正';
+      errorPanel.classList.add('visible');
+      diagramOutput.innerHTML = '';
+      setStatus(false, '語法錯誤');
+    }
+  }
+
+  function scheduleRender() {
+    clearTimeout(debounceTimer);
+    setStatus(true, '處理中…');
+    debounceTimer = setTimeout(render, 350);
+  }
+
+  editor.addEventListener('input', scheduleRender);
+
+  editor.addEventListener('keydown', e => {
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      const s = editor.selectionStart, end = editor.selectionEnd;
+      editor.value = editor.value.substring(0, s) + '  ' + editor.value.substring(end);
+      editor.selectionStart = editor.selectionEnd = s + 2;
+      scheduleRender();
+    }
+  });
+
+  editor.addEventListener('keyup', updateCursor);
+  editor.addEventListener('click', updateCursor);
+
+  function updateCursor() {
+    const val = editor.value, pos = editor.selectionStart;
+    const lines = val.substring(0, pos).split('\n');
+    lineInfo.textContent = `第 ${lines.length} 行，第 ${lines[lines.length - 1].length + 1} 列`;
+  }
+
+  // ── Drag to resize ─────────────────────────────────────────────
+  let dragging = false;
+
+  divider.addEventListener('mousedown', e => {
+    if (panelCollapsed) return;
+    dragging = true;
+    document.body.style.cursor = 'col-resize';
+  });
+
+  document.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    const workspace = document.querySelector('.workspace').getBoundingClientRect();
+    const offset = e.clientX - workspace.left;
+    const pct = Math.max(20, Math.min(80, (offset / workspace.width) * 100));
+    leftPanel.style.flex = `0 0 ${pct}%`;
+  });
+
+  document.addEventListener('mouseup', () => { dragging = false; document.body.style.cursor = ''; });
+
+  // ── Examples ───────────────────────────────────────────────────
+  const examples = {
+    flowchart: `graph TD
+  A([🚀 開始]) --> B{使用者登入?}
+  B -->|是| C[載入個人資料]
+  B -->|否| D[顯示登入頁]
+  C --> E[檢查權限]
+  D --> F[輸入帳密]
+  F --> G{驗證成功?}
+  G -->|是| C
+  G -->|否| H[顯示錯誤訊息]
+  H --> F
+  E -->|管理員| I[進入後台]
+  E -->|一般使用者| J[進入前台]
+  I --> K([結束])
+  J --> K`,
+
+    sequence: `sequenceDiagram
+  participant 使用者
+  participant 前端
+  participant API伺服器
+  participant 資料庫
+
+  使用者->>前端: 送出表單
+  前端->>API伺服器: POST /api/submit
+  activate API伺服器
+  API伺服器->>資料庫: 查詢資料
+  activate 資料庫
+  資料庫-->>API伺服器: 回傳結果
+  deactivate 資料庫
+  API伺服器-->>前端: JSON 回應
+  deactivate API伺服器
+  前端-->>使用者: 顯示成功訊息`,
+
+    class: `classDiagram
+  class Animal {
+    +String name
+    +int age
+    +makeSound() String
+    +move() void
+  }
+  class Dog {
+    +String breed
+    +fetch() void
+    +makeSound() String
+  }
+  class Cat {
+    +bool isIndoor
+    +purr() void
+    +makeSound() String
+  }
+  class Owner {
+    +String name
+    +List~Animal~ pets
+    +adopt(Animal) void
+    +feed(Animal) void
+  }
+
+  Animal <|-- Dog
+  Animal <|-- Cat
+  Owner "1" --> "*" Animal : 擁有`
+  };
+
+  function loadExample(type) { editor.value = examples[type]; scheduleRender(); updateCursor(); }
+  function clearEditor() { editor.value = ''; scheduleRender(); updateCursor(); }
+  function copyCode() {
+    navigator.clipboard.writeText(editor.value).then(() => {
+      const btn = event.target;
+      btn.textContent = '已複製 ✓';
+      setTimeout(() => btn.textContent = '複製程式碼', 1500);
+    });
+  }
+
+  loadExample('flowchart');
 </script>
-
 </body>
 </html>
